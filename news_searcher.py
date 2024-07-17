@@ -9,6 +9,19 @@ TOP_HEADLINES_URL = "https://newsapi.org/v2/top-headlines"
 
 CATEGORIES = ['business', 'entertainment', 'general', 'health', 'science', 'sports', 'technology']
 
+def create_boolean_query(term, excluded_terms, boolean_operator):
+    query_parts = []
+    if term:
+        query_parts.append(term)
+    if excluded_terms:
+        query_parts.extend([f"-{t}" for t in excluded_terms])
+    return f" {boolean_operator} ".join(query_parts)
+
+def validate_sources(sources):
+    # This is a placeholder function. In a real-world scenario, you would
+    # validate against a list of known sources or make an API call to check.
+    return sources
+
 def check_api_key():
     params = {
         "apiKey": API_KEY,
@@ -30,16 +43,19 @@ def check_api_key():
         print(f"Error: Unable to connect to the API. {str(e)}")
         return False
 
-def search_news(term=None, language=None, category=None, from_date=None, to_date=None, num_results=5):
+def search_news(term=None, language=None, category=None, from_date=None, to_date=None, num_results=5, excluded_terms=None, sources=None, boolean_operator=None):
     """
     Perform a news search based on the provided filters.
     
-    :param term: Search term (optional)
+    :param term: Search term (optional). Use quotes for exact phrases.
     :param language: Language code (optional)
     :param category: News category (optional)
     :param from_date: Start date for article search (optional)
     :param to_date: End date for article search (optional)
     :param num_results: Number of results to return (default: 5)
+    :param excluded_terms: Terms to exclude from the search (optional)
+    :param sources: Specific news sources to search in (optional)
+    :param boolean_operator: Boolean operator for combining search terms (optional)
     :return: List of article dictionaries or None if error
     """
 
@@ -54,8 +70,8 @@ def search_news(term=None, language=None, category=None, from_date=None, to_date
         "pageSize": num_results
     }
 
-    if term:
-        params["q"] = term
+    if term or excluded_terms or boolean_operator:
+        params["q"] = create_boolean_query(term, excluded_terms, boolean_operator)
     if language:
         params["language"] = language
     if category:
@@ -64,6 +80,8 @@ def search_news(term=None, language=None, category=None, from_date=None, to_date
         params["from"] = from_date.isoformat()
     if to_date:
         params["to"] = to_date.isoformat()
+    if sources:
+        params["sources"] = ",".join(sources)
     
     try:
         response = requests.get(url, params=params)
@@ -128,7 +146,19 @@ def main():
         print("\nNews Search")
         print("Enter search parameters (press Enter to skip):")
         
-        term = input("Search term: ").strip()
+        print("Search term (use quotes for exact phrases, e.g., \"artificial intelligence\"):")
+        term = input().strip()
+        
+        excluded_terms = input("Excluded terms (comma-separated): ").strip()
+        excluded_terms = [t.strip() for t in excluded_terms.split(',')] if excluded_terms else None
+        
+        boolean_operator = input("Boolean operator (AND/OR): ").strip().upper()
+        if boolean_operator not in ['AND', 'OR']:
+            print("Invalid boolean operator. Using default (AND).")
+            boolean_operator = 'AND'
+        
+        sources = input("News sources (comma-separated): ").strip()
+        sources = validate_sources([s.strip() for s in sources.split(',')]) if sources else None
         
         language = input("Language (en for English, es for Spanish): ").strip().lower()
         if language and language not in ['en', 'es']:
@@ -162,7 +192,7 @@ def main():
             except ValueError:
                 print("Please enter a valid number.")
         
-        articles = search_news(term, language, category, from_date, to_date, num_results)
+        articles = search_news(term, language, category, from_date, to_date, num_results, excluded_terms, sources, boolean_operator)
         
         if articles:
             export_option = input("Do you want to export the results to CSV? (y/n): ").lower()
